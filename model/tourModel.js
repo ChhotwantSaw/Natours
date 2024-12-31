@@ -1,6 +1,7 @@
 const mongoose=require('mongoose');
 const slugify=require('slugify');
-const validator=require('slugify');
+const validator=require('validator');
+const User=require('./userModel');
 const tourSchema=new mongoose.Schema({
     name:{
         type:String,
@@ -75,6 +76,34 @@ const tourSchema=new mongoose.Schema({
         type:Boolean,
         default:false
     },
+    startLocation:{
+        type:{
+            type:String,
+            default:"Point",
+            enum:["Point"]
+        },
+        coordinates:[Number],
+        address:String,
+        description:String
+
+    },
+    locations:[{
+        type:{
+            type:String,
+            default:"Point",
+            enum:["Point"]
+        },
+        coordinates:[Number],
+        address:String,
+        description:String,
+        day:Number
+    }],
+    guides:[
+        {
+            type:mongoose.Schema.ObjectId,
+            ref:'User'
+        }
+    ],
     startDates:[Date]
 },
 {
@@ -85,6 +114,16 @@ const tourSchema=new mongoose.Schema({
 tourSchema.virtual('durationWeek').get(function(){
     return this.duration/7;
 })
+
+tourSchema.index({price:1,ratingsAverage:-1});
+tourSchema.index({slug:1});
+
+//Virtual Populate
+tourSchema.virtual('reviews',{
+    ref:'Review',
+    foreignField:'tour',
+    localField:'_id'
+});
 
 //DOCUMENT MIDDLEWARE runs before and after .save() and .create()
 // tourSchema.pre('save',function(next){
@@ -102,6 +141,14 @@ tourSchema.pre('save',function(next){
     next();
 })
 
+//this is to check if users is the guides array exists or not
+//  tourSchema.pre('save',async function(next){
+//     const guidesPromises=this.guides.map(async id=> await User.findById(id));
+//     const allGuides=await Promise.all(guidesPromises);
+//     this.guides=allGuides.filter(id=> id!==null);
+
+//     next();
+//  })
 //QUERY MIDDLEWARE
 tourSchema.pre(/^find/,function(next){
     // console.log("Hi");
@@ -109,6 +156,14 @@ tourSchema.pre(/^find/,function(next){
  this.time=Date.now();
  next();
 })
+
+tourSchema.pre(/^find/,function(next){
+    this.populate({
+        path:'guides',
+        select:'-__v -passwordChangedAt'
+    })
+    next();
+});
 
 tourSchema.post(/^find/,function(docs,next){
     // console.log(`${Date.now()-this.time} miliseconds`);
